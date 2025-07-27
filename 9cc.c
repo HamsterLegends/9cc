@@ -15,18 +15,37 @@ enum tokenkind {
 struct token {
 	enum tokenkind kind;
 	struct token *next;
-	int val;		//kindがTK_NUMの場合のその値
+	int val;		//If kind is TK_NUM,the value
 	char *loc;
 };
 
-//現在注目しているトークン
+// Input program
+char *user_input;
+
+// Current token
 struct token *token;
 
-//エラー報告兼終了関数
+// Report an error and exit.
 void error(char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	fprintf(stderr, "\n");
+	exit(1);
+}
+
+// Report an error LOCATION and exit.
+
+void error_at(char *loc, char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+
+	int pos = loc - user_input;
+	fprintf(stderr, "%s\n", user_input);
+	fprintf(stderr, "%*s", pos + 1, "^");
+	fprintf(stderr, " ");
 	vfprintf(stderr, fmt, ap);
 	fprintf(stderr, "\n");
 	exit(1);
@@ -44,7 +63,7 @@ bool consume (char op)
 void expect(char op)
 {
 	if (token -> kind != TK_RESERVED || token -> loc[0] != op) {
-		error("'%c'ではありません", op);
+		error_at(token -> loc, "expected'%c'", op);
 	}
 	token = token -> next;
 }
@@ -52,7 +71,7 @@ void expect(char op)
 int expect_number() 
 {
 	if (token -> kind != TK_NUM) {
-		error("数ではありません");
+		error_at(token -> loc, "expected a number");
 	}
 	int val = token -> val;
 	token = token -> next;
@@ -72,8 +91,9 @@ struct token *new_token(enum tokenkind kind, struct token *cur, char *loc)
 	return tok;
 }
 
-struct token *tokenize(char *p)
+struct token *tokenize()
 {
+	char *p = user_input;
 	struct token head;
 	head.next = NULL;
 	struct token *cur = &head;
@@ -94,7 +114,7 @@ struct token *tokenize(char *p)
 			cur -> val = strtol(p, &p, 10);
 			continue;
 		}
-		error("トークナイズできません");
+	error_at(p, "expected a number");
 	}
 	new_token(TK_EOF, cur, p);
 	return head.next;
@@ -103,11 +123,12 @@ struct token *tokenize(char *p)
 int main(int argc, char **argv)
 {
 	if (argc != 2) {
-		error("引数の個数が正しくありません");
+		error("%s: invalid number of arguments", argv[0]);
 		return 1;
 	}
 
-	token = tokenize(argv[1]);
+	user_input = argv[1];
+	token = tokenize();
 
 	printf(".intel_syntax noprefix\n");
 	printf(".globl main\n");
